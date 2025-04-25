@@ -1,22 +1,81 @@
-from ossapi import Ossapi
+from ossapi import Ossapi, GameMode
+import json
 
+# Client Stuff
+# If you are using this for personal use then create your own ID and Secret
+# You can do so here: https://osu.ppy.sh/home/account/edit#oauth
 clientID = 36248
 clientSecret = 'kwQ1Jf9vvoRo3DY0pYiGYAsu3ETK0HSLhyNfEXRj'
 api = Ossapi(clientID, clientSecret)
 
-# TODO:
-# Loop through maps starting at like idk 2015-2017 or so
-# Check if beatmap is ranked, if not then skip it
-# If beatmap is ranked filter it based on the rules.txt
-# Save all relevant data (Song Title, Difficulty Name, setID, difficultyID, Star Rating) to an object list
-# Export that list as json data
-# I'll quick test on like 25-50 maps depending on slow this is (I also may switch to an async structure we'll see)
+def BeatMapFetcher(startingID, maximumID):
+    beatmapID = startingID # Clarity
+    while beatmapID < maximumID:
+        beatmapID += 1 # So we don't get stuck in after a continue block
 
-# Starting Base:
-beatmapID = api.beatmapset(347136).beatmaps[3].id
+        # Check if the beatmap actually exists
+        try:
+            beatmapset = api.beatmapset(beatmapID)
+        except:
+            print(f"Could not find beatmap at {beatmapID}, continuing to next beatmap.")
+            continue
 
-print(f"Aim Difficulty: {round(api.beatmap_attributes(beatmapID).attributes.aim_difficulty, 2)}")
-print(f"Speed Difficulty: {round(api.beatmap_attributes(beatmapID).attributes.speed_difficulty, 2)}")
+        for beatmap in beatmapset.beatmaps:
+            # I'll probably either implement other Game Mode functionality OR make them separate calculators
+            if beatmap.mode != GameMode.OSU or beatmap.ranked.value != 1:
+                continue
 
-print(f"Note Count: {round(api.beatmap_attributes(beatmapID).attributes.max_combo, 2)}")
-print(f"Speed Note Count: {round(api.beatmap_attributes(beatmapID).attributes.speed_note_count, 2)}")
+            CalculateMapType(beatmapset, beatmap)
+
+        print(f"Beatmap #{beatmapID} Returns good, continuing to next beatmap.")
+
+aimMaps = []
+speedMaps = []
+staminaMaps = []
+hybridMaps = []
+consistencyMaps = []
+def CalculateMapType(mapset, beatmap):
+    maxCombo = api.beatmap_attributes(beatmap.id).attributes.max_combo
+    aimDifficulty = api.beatmap_attributes(beatmap.id).attributes.aim_difficulty
+    speedDifficulty = api.beatmap_attributes(beatmap.id).attributes.speed_difficulty
+    speedNoteCount = api.beatmap_attributes(beatmap.id).attributes.speed_note_count
+
+    # SongTitle, DiffTitle, setID, diffID, starRating
+    beatMapObj = {
+        "songTitle": mapset.title,
+        "difficultyTitle": beatmap.version,
+        "setID": mapset.id,
+        "difficultyID": beatmap.id,
+        "difficulty": api.beatmap_attributes(beatmap.id).attributes.star_rating
+    }
+
+    if aimDifficulty > speedDifficulty + 0.5:
+        print(f"Aim Map: {beatmap.version}")
+        aimMaps.append(beatMapObj)
+    elif speedNoteCount > maxCombo * 0.2:
+        print(f"Stamina Map: {beatmap.version}")
+        speedMaps.append(beatMapObj)
+    elif speedDifficulty > aimDifficulty + 0.5 and speedNoteCount > maxCombo * 0.1:
+        print(f"Speed Map: {beatmap.version}")
+        speedMaps.append(beatMapObj)
+    elif abs(aimDifficulty - speedDifficulty) < 0.5 and speedNoteCount > maxCombo * 0.1:
+        print(f"Hybrid Map: {beatmap.version}")
+        hybridMaps.append(beatMapObj)
+    else:
+        print(f"Consistency Map: {beatmap.version}")
+        consistencyMaps.append(beatMapObj)
+
+# Starting in ~April 2015 -- Ending in ~April 2025
+BeatMapFetcher(300033, 2347113)
+allBeatMaps = {
+    "aimMaps": aimMaps, 
+    "speedMaps": speedMaps, 
+    "staminaMaps": staminaMaps, 
+    "hybridMaps": hybridMaps, 
+    "consistencyMaps": consistencyMaps
+}
+
+# Write beatmaps to file.
+filename = "beatmaps.json"
+with open(filename, 'w') as file:
+    json.dump(allBeatMaps, file, indent = 4)

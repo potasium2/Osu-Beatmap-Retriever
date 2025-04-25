@@ -1,6 +1,0 @@
-Additional Rules for defining beatmap style:
-Aim: >0.5 Star difference
-Speed: >0.5 Star difference and at least 10% of max combo are speed notes
-Stamina: >20% max combo are speed notes
-Hybrid: Aim and Speed <0.5 Star difference
-Consistency: Everything else ig
